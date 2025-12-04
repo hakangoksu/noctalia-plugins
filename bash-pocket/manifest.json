@@ -3,7 +3,7 @@
     "name": "Bash Pocket",
     "version": "1.0.0",
     "minNoctaliaVersion": "3.6.0",
-    "author": "Antigravity",
+    "author": "Hakan Göksu",
     "license": "MIT",
     "repository": "https://github.com/noctalia-dev/noctalia-plugins",
     "description": "Create and execute custom bash scripts from the bar.",
