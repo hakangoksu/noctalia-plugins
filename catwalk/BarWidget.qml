@@ -109,7 +109,8 @@ Rectangle {
 
     tooltipText: {
         if (!pluginApi) return "No API";
-        return root.isRunning ? (pluginApi.tr("tooltip.running") || "Running") : (pluginApi.tr("tooltip.sleeping") || "Sleeping");
+        var actuallyRunning = root.isRunning && root.cpuUsage >= 10;
+        return actuallyRunning ? (pluginApi.tr("tooltip.running") || "Running") : (pluginApi.tr("tooltip.sleeping") || "Sleeping");
     }
     
     Image {
