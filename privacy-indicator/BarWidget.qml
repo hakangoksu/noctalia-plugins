@@ -9,13 +9,11 @@ import qs.Modules.Bar.Extras
 import qs.Services.UI
 import qs.Widgets
 
-// Bar Widget Component
 Rectangle {
   id: root
 
   property var pluginApi: null
 
-  // Required properties for bar widgets
   property ShellScreen screen
   property string widgetId: ""
   property string section: ""
@@ -23,7 +21,6 @@ Rectangle {
   readonly property string barPosition: Settings.data.bar.position
   readonly property bool isVertical: barPosition === "left" || barPosition === "right"
 
-  // Privacy states
   property bool micActive: false
   property bool camActive: false
   property bool scrActive: false
@@ -31,7 +28,6 @@ Rectangle {
   property var camApps: []
   property var scrApps: []
 
-  // Active indicator color
   readonly property color activeColor: Color.mPrimary
   readonly property color inactiveColor: Qt.alpha(Color.mOnSurfaceVariant, 0.3)
   readonly property color micColor: micActive ? activeColor : inactiveColor
@@ -47,6 +43,41 @@ Rectangle {
 
   PwObjectTracker {
     objects: Pipewire.ready ? Pipewire.nodes.values : []
+  }
+
+  Process {
+    id: cameraCheckProcess
+    running: false
+    
+    command: ["sh", "-c", "for dev in /dev/video*; do [ -e \"$dev\" ] && [ -n \"$(find /proc/[0-9]*/fd/ -lname \"$dev\" 2>/dev/null | head -n1)\" ] && echo \"active\" && exit 0; done; exit 1"]
+    
+    onExited: (code, status) => {
+      var isActive = code === 0;
+      root.camActive = isActive;
+      
+      if (isActive) {
+        cameraAppsProcess.running = true;
+      } else {
+        root.camApps = [];
+      }
+    }
+  }
+  
+  Process {
+    id: cameraAppsProcess
+    running: false
+    
+    command: ["sh", "-c", "for dev in /dev/video*; do [ -e \"$dev\" ] && for fd in /proc/[0-9]*/fd/*; do [ -L \"$fd\" ] && [ \"$(readlink \"$fd\" 2>/dev/null)\" = \"$dev\" ] && ps -p \"$(echo \"$fd\" | cut -d/ -f3)\" -o comm= 2>/dev/null; done; done | sort -u | tr '\\n' ',' | sed 's/,$//'"]
+    
+    onExited: (code, status) => {
+      if (stdout) {
+        var appsString = stdout.trim();
+        var apps = appsString.length > 0 ? appsString.split(',') : [];
+        root.camApps = apps;
+      } else {
+        root.camApps = [];
+      }
+    }
   }
 
   Timer {
@@ -82,6 +113,10 @@ Rectangle {
       
       var mediaClass = node.properties["media.class"] || "";
       if (mediaClass === "Stream/Input/Audio") {
+        if (node.properties["stream.capture.sink"] === "true") {
+          continue;
+        }
+        
         isActive = true;
         var appName = getAppName(node);
         if (appName && appNames.indexOf(appName) === -1) {
@@ -94,44 +129,8 @@ Rectangle {
     root.micApps = appNames;
   }
 
-  function isCameraNode(node) {
-    var mediaClass = node.properties["media.class"] || "";
-    var mediaName = (node.properties["media.name"] || "").toLowerCase();
-    
-    // Check for video capture devices (cameras)
-    if (mediaClass && (mediaClass === "Video/Source" || 
-                       mediaClass.indexOf("Video/Source") !== -1 ||
-                       mediaClass.indexOf("Camera") !== -1)) {
-      return true;
-    }
-    
-    // Check for camera-related patterns in media name
-    if (mediaName.match(/camera|webcam|video[0-9]/i)) {
-      return true;
-    }
-    
-    return false;
-  }
-
-  function updateCameraState(nodes, links) {
-    var appNames = [];
-    var isActive = false;
-    
-    for (var i = 0; i < nodes.length; i++) {
-      var node = nodes[i];
-      if (!node || !hasNodeLinks(node, links) || !node.properties) continue;
-      
-      if (isCameraNode(node)) {
-        isActive = true;
-        var appName = getAppName(node);
-        if (appName && appNames.indexOf(appName) === -1) {
-          appNames.push(appName);
-        }
-      }
-    }
-    
-    root.camActive = isActive;
-    root.camApps = appNames;
+  function updateCameraState() {
+    cameraCheckProcess.running = true;
   }
 
   function isScreenShareNode(node) {
@@ -141,20 +140,16 @@ Rectangle {
     
     var mediaClass = node.properties["media.class"] || "";
     
-    // CRITICAL: Immediately reject ANY node with "Audio" in media class
     if (mediaClass.indexOf("Audio") >= 0) {
       return false;
     }
     
-    // Must explicitly have "Video" in media class
     if (mediaClass.indexOf("Video") === -1) {
       return false;
     }
     
-    // Now check for screen sharing patterns
     var mediaName = (node.properties["media.name"] || "").toLowerCase();
     
-    // Check for screen sharing patterns in media name
     if (mediaName.match(/^(xdph-streaming|gsr-default|game capture|screen|desktop|display|cast|webrtc|v4l2)/) ||
         mediaName === "gsr-default_output" ||
         mediaName.match(/screen-cast|screen-capture|desktop-capture|monitor-capture|window-capture|game-capture/i)) {
@@ -192,7 +187,7 @@ Rectangle {
     var links = Pipewire.links.values || [];
     
     updateMicrophoneState(nodes, links);
-    updateCameraState(nodes, links);
+    updateCameraState();
     updateScreenShareState(nodes, links);
   }
 
@@ -218,13 +213,6 @@ Rectangle {
     anchors.fill: parent
     acceptedButtons: Qt.RightButton
     hoverEnabled: true
-    
-    onClicked: mouse => {
-      if (mouse.button === Qt.RightButton) {
-        // Plugin widgets can use context menu if needed
-        // For now, just show tooltip on hover
-      }
-    }
     
     onEntered: TooltipService.show(root, buildTooltip())
     onExited: TooltipService.hide()
@@ -277,4 +265,3 @@ Rectangle {
     }
   }
 }
-
