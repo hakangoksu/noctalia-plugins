@@ -66,7 +66,6 @@ Rectangle {
         }
         createProcess.newIndex = newIndex
         // Create file with shebang, then make it executable
-        // Using printf instead of echo to handle newline properly
         createProcess.command = ["sh", "-c", "printf '#!/bin/bash\\n' > \"" + root.pluginDir + "/" + newIndex + ".sh\" && chmod +x \"" + root.pluginDir + "/" + newIndex + ".sh\""]
         createProcess.running = true
     }
@@ -128,18 +127,7 @@ Rectangle {
                 "icon": "trash",
                 "action": "delete_" + index
             });
-            // Add separator if not last
-            if (i < root.pockets.length - 1) {
-                 // NContextMenu doesn't support separators natively in the model structure used here easily without custom delegate logic or model types, 
-                 // but we can just list them sequentially.
-            }
         }
-
-        // Add "Add Pocket" action
-        if (model.length > 0) {
-             // Separator logic would be nice but let's just append
-        }
-        
         model.push({
             "label": "Add Pocket",
             "icon": "plus",
