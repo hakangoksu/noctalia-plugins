@@ -83,10 +83,29 @@ Rectangle {
 
     function editPocket(index) {
         var path = root.pluginDir + "/" + index + ".sh";
-        
-        // If $EDITOR is set, use it; otherwise use kitty -e nano
-        var cmd = "if [ -n \"$EDITOR\" ]; then $EDITOR \"" + path + "\"; else kitty -e nano \"" + path + "\"; fi";
-        Quickshell.execDetached(["sh", "-c", cmd]);
+        var shellCommand = `
+            if [ -n "$EDITOR" ]; then
+                $EDITOR ${path}
+            elif [ -n "$VISUAL" ]; then
+                $VISUAL ${path}
+            else
+                # First try $TERMINAL and commonly used terminals
+                for term in "$TERMINAL" kitty alacritty foot wezterm konsole gnome-terminal xfce4-terminal xterm; do
+                    if [ -n "$term" ] && command -v "$term" >/dev/null 2>&1; then
+                        # gnome-terminal exception
+                        if [ "$term" = "gnome-terminal" ]; then
+                            "$term" -- nano ${path}
+                        else
+                            "$term" -e nano ${path}
+                        fi
+                        exit 0
+                    fi
+                done
+                # Last resort
+                xterm -e nano ${path}
+            fi
+        `;
+        Quickshell.execDetached(["sh", "-c", shellCommand]);
     }
 
     function deletePocket(index) {
